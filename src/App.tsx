@@ -965,13 +965,8 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 // ----------------------------------------------------------------------
 // 3. Login Page Component
 // ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
-// 3. Login Page Component
-// ----------------------------------------------------------------------
 function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User) => void; isDarkMode: boolean; toggleTheme: () => void }) {
-  const [isActive, setIsActive] = useState(false); // For Desktop sliding
-  const [isMobileSignUp, setIsMobileSignUp] = useState(false); // For Mobile switching
-  
+  const [isActive, setIsActive] = useState(false);
   const [signUpData, setSignUpData] = useState({ name: "", email: "", password: "" });
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const theme = isDarkMode ? colors.dark : colors.light;
@@ -1005,8 +1000,7 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
       
       if (response.ok) {
         alert("회원가입 성공! 이제 로그인해주세요.");
-        setIsActive(false); 
-        setIsMobileSignUp(false);
+        setIsActive(false); // 로그인 화면으로 전환
       } else {
         alert(data.message || "회원가입 실패");
       }
@@ -1040,63 +1034,9 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     }
   };
 
-  // --- Mobile View (Simple Stack) ---
-  const MobileLayout = () => (
-    <div className={`md:hidden flex flex-col items-center justify-center min-h-screen p-6 ${theme.bg} ${theme.textMain}`}>
-      <div className={`w-full max-w-sm p-8 rounded-3xl shadow-lg border ${theme.panel} ${theme.border}`}>
-        <h1 className="text-3xl font-bold mb-8 text-center">{isMobileSignUp ? "Create Account" : "Sign In"}</h1>
-        
-        <form onSubmit={isMobileSignUp ? handleSignUp : handleLogin} className="flex flex-col gap-4">
-          {isMobileSignUp && (
-            <input 
-              type="text" 
-              placeholder="Name" 
-              value={signUpData.name} 
-              onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} 
-              className={`w-full rounded-xl p-4 ${theme.inputBg} outline-none border border-transparent focus:border-[#948979]`} 
-            />
-          )}
-          <input 
-            type="email" 
-            placeholder="Email" 
-            value={isMobileSignUp ? signUpData.email : loginData.email} 
-            onChange={(e) => isMobileSignUp ? setSignUpData({ ...signUpData, email: e.target.value }) : setLoginData({ ...loginData, email: e.target.value })} 
-            className={`w-full rounded-xl p-4 ${theme.inputBg} outline-none border border-transparent focus:border-[#948979]`} 
-          />
-          <input 
-            type="password" 
-            placeholder="Password" 
-            value={isMobileSignUp ? signUpData.password : loginData.password} 
-            onChange={(e) => isMobileSignUp ? setSignUpData({ ...signUpData, password: e.target.value }) : setLoginData({ ...loginData, password: e.target.value })} 
-            className={`w-full rounded-xl p-4 ${theme.inputBg} outline-none border border-transparent focus:border-[#948979]`} 
-          />
-          
-          <button type="submit" className={`mt-4 rounded-full py-4 text-base font-bold ${theme.accent} ${isDarkMode ? "text-white" : "text-[#393E46]"}`}>
-            {isMobileSignUp ? "Sign Up" : "Sign In"}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center">
-          <p className="text-sm opacity-60 mb-2">
-            {isMobileSignUp ? "이미 계정이 있으신가요?" : "아직 회원이 아니신가요?"}
-          </p>
-          <button onClick={() => setIsMobileSignUp(!isMobileSignUp)} className="font-bold underline">
-            {isMobileSignUp ? "로그인하기" : "회원가입하기"}
-          </button>
-        </div>
-
-        <div className="mt-8 flex justify-center">
-           <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20 border-white/20" : "bg-white/50 border-black/10"} />
-        </div>
-      </div>
-    </div>
-  );
-
-  // --- Desktop View (Original Sliding Animation) ---
-  const DesktopLayout = () => (
-    <div className={`hidden md:flex min-h-screen items-center justify-center ${theme.bg} transition-colors duration-300`}>
+  return (
+    <div className={`flex min-h-screen items-center justify-center ${theme.bg} transition-colors duration-300`}>
       <div className={`relative w-[850px] max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "550px" }}>
-        {/* Sign Up Form Container */}
         <div className={`absolute top-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out ${isActive ? "translate-x-full opacity-100 z-[5]" : "translate-x-0 opacity-0 z-[1]"}`}>
           <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleSignUp}>
             <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>Create Account</h1>
@@ -1106,8 +1046,6 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
             <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>Sign Up</button>
           </form>
         </div>
-
-        {/* Login Form Container */}
         <div className={`absolute top-0 left-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out z-[2] ${isActive ? "translate-x-full" : "translate-x-0"}`}>
           <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleLogin}>
             <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>Sign In</h1>
@@ -1116,8 +1054,6 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
             <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>Sign In</button>
           </form>
         </div>
-
-        {/* Overlay Container */}
         <div className={`absolute top-0 left-1/2 h-full w-1/2 overflow-hidden transition-transform duration-[600ms] ease-in-out z-[100] ${isActive ? "-translate-x-full" : "translate-x-0"}`}>
           <div className={`relative -left-full h-full w-[200%] ${theme.accent} ${isDarkMode ? "text-white" : "text-[#393E46]"} transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-1/2" : "translate-x-0"}`}>
             <div className={`absolute top-0 flex h-full w-1/2 flex-col items-center justify-center px-10 text-center transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-0" : "-translate-x-[20%]"}`}>
@@ -1135,13 +1071,6 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
         </div>
       </div>
     </div>
-  );
-
-  return (
-    <>
-      <MobileLayout />
-      <DesktopLayout />
-    </>
   );
 }
 
