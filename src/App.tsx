@@ -971,9 +971,8 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const theme = isDarkMode ? colors.dark : colors.light;
   
-  // Vercel 배포 환경에서는 relative path 사용, 로컬에서는 127.0.0.1 직접 사용
-  // backend가 /api prefix를 사용하므로 로컬 주소에도 /api 추가
-  const API_URL = import.meta.env.PROD ? "/api" : "http://127.0.0.1:8000/api";
+  // Render 배포 환경에서는 환경변수 VITE_API_URL 사용, 로컬에서는 127.0.0.1 직접 사용
+  const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
   const handleSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1029,26 +1028,55 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
   };
 
   return (
-    <div className={`flex min-h-screen items-center justify-center ${theme.bg} transition-colors duration-300`}>
-      <div className={`relative w-[850px] max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "550px" }}>
-        <div className={`absolute top-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out ${isActive ? "translate-x-full opacity-100 z-[5]" : "translate-x-0 opacity-0 z-[1]"}`}>
-          <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleSignUp}>
+    <div className={`flex min-h-screen items-center justify-center ${theme.bg} transition-colors duration-300 p-4`}>
+      <div className={`relative w-full md:w-[850px] max-w-md md:max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "550px" }}>
+        
+        {/* Sign Up Form */}
+        <div className={`absolute top-0 h-full w-full md:w-1/2 transition-all duration-[600ms] ease-in-out 
+          ${isActive 
+            ? "translate-x-0 opacity-100 z-[5] md:translate-x-full" 
+            : "-translate-x-full opacity-0 z-[1] md:translate-x-full md:opacity-0"
+          }`}>
+          <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-8 md:px-12 py-8 text-center`} onSubmit={handleSignUp}>
             <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>Create Account</h1>
             <input type="text" placeholder="Name" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
             <input type="email" placeholder="Email" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
             <input type="password" placeholder="Password" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
             <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>Sign Up</button>
+            
+            {/* Mobile Only Switch */}
+            <p className="mt-8 md:hidden text-sm opacity-60">
+              이미 계정이 있으신가요? 
+              <button type="button" onClick={() => setIsActive(false)} className="ml-2 font-bold underline">로그인</button>
+            </p>
           </form>
         </div>
-        <div className={`absolute top-0 left-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out z-[2] ${isActive ? "translate-x-full" : "translate-x-0"}`}>
-          <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleLogin}>
+
+        {/* Login Form */}
+        <div className={`absolute top-0 left-0 h-full w-full md:w-1/2 transition-all duration-[600ms] ease-in-out z-[2] 
+          ${isActive 
+            ? "-translate-x-full md:translate-x-full" // Mobile: slide out left, Desktop: handled by overlay z-index but keeping layout consistent
+            : "translate-x-0"
+          }`}>
+          <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-8 md:px-12 py-8 text-center`} onSubmit={handleLogin}>
             <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>Sign In</h1>
             <input type="email" placeholder="Email" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
             <input type="password" placeholder="Password" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
             <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>Sign In</button>
+            
+             {/* Mobile Only Switch */}
+             <div className="mt-8 flex flex-col items-center gap-4 md:hidden">
+              <p className="text-sm opacity-60">
+                아직 회원이 아니신가요? 
+                <button type="button" onClick={() => setIsActive(true)} className="ml-2 font-bold underline">회원가입</button>
+              </p>
+              <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20 border-white/20" : "bg-white/50 border-black/10"} />
+            </div>
           </form>
         </div>
-        <div className={`absolute top-0 left-1/2 h-full w-1/2 overflow-hidden transition-transform duration-[600ms] ease-in-out z-[100] ${isActive ? "-translate-x-full" : "translate-x-0"}`}>
+
+        {/* Overlay Container - Desktop Only */}
+        <div className={`hidden md:block absolute top-0 left-1/2 h-full w-1/2 overflow-hidden transition-transform duration-[600ms] ease-in-out z-[100] ${isActive ? "-translate-x-full" : "translate-x-0"}`}>
           <div className={`relative -left-full h-full w-[200%] ${theme.accent} ${isDarkMode ? "text-white" : "text-[#393E46]"} transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-1/2" : "translate-x-0"}`}>
             <div className={`absolute top-0 flex h-full w-1/2 flex-col items-center justify-center px-10 text-center transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-0" : "-translate-x-[20%]"}`}>
               <h1 className="mb-2 text-[32px] font-bold">Welcome Back!</h1>
