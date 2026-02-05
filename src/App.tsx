@@ -972,7 +972,15 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
   const theme = isDarkMode ? colors.dark : colors.light;
   
   // Render 배포 환경에서는 환경변수 VITE_API_URL 사용, 로컬에서는 127.0.0.1 직접 사용
-  const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+  // import.meta.env 접근 시 에러 방지
+  const getApiUrl = () => {
+    try {
+      return import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+    } catch {
+      return "http://127.0.0.1:8000/api";
+    }
+  };
+  const API_URL = getApiUrl();
 
   const handleSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1055,7 +1063,7 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
         {/* Login Form */}
         <div className={`absolute top-0 left-0 h-full w-full md:w-1/2 transition-all duration-[600ms] ease-in-out z-[2] 
           ${isActive 
-            ? "-translate-x-full md:translate-x-full" // Mobile: slide out left, Desktop: handled by overlay z-index but keeping layout consistent
+            ? "-translate-x-full md:translate-x-full" 
             : "translate-x-0"
           }`}>
           <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-8 md:px-12 py-8 text-center`} onSubmit={handleLogin}>
