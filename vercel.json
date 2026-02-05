@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "login-project/main.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "일정표/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/login-project/main.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/일정표/$1"
+    }
+  ]
+}

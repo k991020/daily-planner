@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useState, useEffect, useRef } from "react";
 import { 
   Sun, 
@@ -215,7 +216,7 @@ const colors = {
 // ----------------------------------------------------------------------
 function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onLogout: () => void; isDarkMode: boolean; toggleTheme: () => void }) {
   const [todos, setTodos] = useState<Todo[]>(() => {
-    const parsed = safeParseJSON("my_scheduler_todos", []);
+    const parsed = safeParseJSON(`my_scheduler_todos_${user.email}`, []);
     return parsed.map((t: any) => ({
       ...t,
       createdAt: new Date(t.createdAt),
@@ -224,7 +225,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
   });
 
   const [categories, setCategories] = useState<Category[]>(() => {
-    const parsed = safeParseJSON("my_scheduler_categories", []);
+    const parsed = safeParseJSON(`my_scheduler_categories_${user.email}`, []);
     if (parsed.length > 0) {
       return parsed.map((c: any) => ({
         ...c,
@@ -242,7 +243,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
   });
 
   const [habits, setHabits] = useState<Habit[]>(() => {
-    const parsed = safeParseJSON("my_scheduler_habits", []);
+    const parsed = safeParseJSON(`my_scheduler_habits_${user.email}`, []);
     const defaultHabits = [
       { id: "exercise", name: "운동", icon: <Dumbbell size={20}/>, color: "#EF4444", completedDates: [] },
       { id: "diet", name: "식단", icon: <Utensils size={20}/>, color: "#10B981", completedDates: [] },
@@ -262,18 +263,18 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    localStorage.setItem("my_scheduler_todos", JSON.stringify(todos));
-  }, [todos]);
+    localStorage.setItem(`my_scheduler_todos_${user.email}`, JSON.stringify(todos));
+  }, [todos, user.email]);
 
   useEffect(() => {
     const catsToSave = categories.map(c => ({ id: c.id, name: c.name, color: c.color }));
-    localStorage.setItem("my_scheduler_categories", JSON.stringify(catsToSave));
-  }, [categories]);
+    localStorage.setItem(`my_scheduler_categories_${user.email}`, JSON.stringify(catsToSave));
+  }, [categories, user.email]);
 
   useEffect(() => {
     const habitsToSave = habits.map(h => ({ id: h.id, name: h.name, completedDates: h.completedDates, color: h.color }));
-    localStorage.setItem("my_scheduler_habits", JSON.stringify(habitsToSave));
-  }, [habits]);
+    localStorage.setItem(`my_scheduler_habits_${user.email}`, JSON.stringify(habitsToSave));
+  }, [habits, user.email]);
 
   const [inputValue, setInputValue] = useState("");
   const [inputLocation, setInputLocation] = useState("");
@@ -342,19 +343,80 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 
   const getTodosForDate = (date: Date) => todos.filter((todo) => todo.dueDate && isSameDay(todo.dueDate, date));
 
+  // Smart Parsing Logic
+  const parseSmartInput = (input: string) => {
+    let text = input;
+    let timeString = undefined;
+    let location = undefined;
+
+    // 1. Time Parsing
+    // Match "오전/오후 XX시 YY분" or "오전/오후 XX시"
+    const ampmRegex = /(오전|오후)\s*(\d{1,2})시(\s*(\d{1,2})분)?/;
+    // Match "XX시 YY분" or "XX시"
+    const simpleTimeRegex = /(\d{1,2})시(\s*(\d{1,2})분)?/;
+
+    let timeMatch = text.match(ampmRegex);
+    if (timeMatch) {
+      const period = timeMatch[1];
+      let hour = parseInt(timeMatch[2]);
+      const minute = timeMatch[4] ? parseInt(timeMatch[4]) : 0;
+      
+      // Normalize to 12-hour format for display
+      const displayHour = hour; // Already 12-h format if user typed 오전/오후
+      // Only check validity
+      if (hour >= 1 && hour <= 12 && minute >= 0 && minute < 60) {
+          timeString = `${period} ${String(displayHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+          text = text.replace(timeMatch[0], "").trim();
+      }
+    } else {
+      timeMatch = text.match(simpleTimeRegex);
+      if (timeMatch) {
+        let hour = parseInt(timeMatch[1]);
+        const minute = timeMatch[3] ? parseInt(timeMatch[3]) : 0;
+        
+        if (hour >= 0 && hour <= 24 && minute >= 0 && minute < 60) {
+            const ampm = hour >= 12 ? "오후" : "오전";
+            const displayHour = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+            timeString = `${ampm} ${String(displayHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+            text = text.replace(timeMatch[0], "").trim();
+        }
+      }
+    }
+
+    // 2. Location Parsing ("~에서")
+    const locationRegex = /([가-힣a-zA-Z0-9]+)에서/;
+    const locMatch = text.match(locationRegex);
+    if (locMatch) {
+      location = locMatch[1];
+      text = text.replace(locMatch[0], "").trim();
+    }
+
+    return { cleanText: text, time: timeString, location };
+  };
+
   const addTodo = () => {
     if (inputValue.trim() === "") return alert("할 일을 입력해 주세요!");
-    const { tags, cleanText } = extractTags(inputValue);
-    const formattedTime = isTimeEnabled ? `${timeAmpm} ${timeHour}:${timeMinute}` : undefined;
+    
+    // Apply Smart Parsing
+    const parsed = parseSmartInput(inputValue);
+    const { tags, cleanText } = extractTags(parsed.cleanText); // Extract tags from the remaining text
+    
+    // Determine final values (Manual selection overrides smart parsing? No, user wants automatic. 
+    // Let's say: if Smart Parse found something, use it. Otherwise fall back to manual state.)
+    // Actually user said "Add AS IF selected", so parsed values should take precedence or fill in.
+    
+    const finalTime = parsed.time || (isTimeEnabled ? `${timeAmpm} ${timeHour}:${timeMinute}` : undefined);
+    const finalLocation = parsed.location || (inputLocation.trim() || undefined);
+
     const newTodo: Todo = {
       id: Date.now(),
-      text: cleanText || inputValue,
+      text: cleanText || parsed.cleanText,
       completed: false,
       createdAt: new Date(),
       dueDate: inputDate,
       categoryId: selectedCategoryId === "all" ? undefined : selectedCategoryId,
-      location: inputLocation.trim() || undefined,
-      time: formattedTime,
+      location: finalLocation,
+      time: finalTime,
       priority: false,
       tags: tags
     };
@@ -909,6 +971,10 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const theme = isDarkMode ? colors.dark : colors.light;
   
+  // Vercel 배포 환경에서는 relative path 사용, 로컬에서는 127.0.0.1 직접 사용
+  // backend가 /api prefix를 사용하므로 로컬 주소에도 /api 추가
+  const API_URL = import.meta.env.PROD ? "/api" : "http://127.0.0.1:8000/api";
+
   const handleSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
     const nameRegex = /^[가-힣]{2,5}$/;
@@ -916,13 +982,50 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(signUpData.email)) return alert("올바른 이메일 형식을 입력해주세요.");
     if (signUpData.password.length < 8) return alert("비밀번호는 8자 이상 입력해주세요.");
-    onLogin({ username: signUpData.name, email: signUpData.email });
+    
+    try {
+      console.log(`Connecting to ${API_URL}/signup`);
+      const response = await fetch(`${API_URL}/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(signUpData),
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert("회원가입 성공! 이제 로그인해주세요.");
+        setIsActive(false); // 로그인 화면으로 전환
+      } else {
+        alert(data.message || "회원가입 실패");
+      }
+    } catch (error: any) {
+      console.error("Signup Error:", error);
+      alert(`서버 연결에 실패했습니다: ${error.message}`);
+    }
   };
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!loginData.email) return alert("이메일을 입력해주세요.");
-    onLogin({ username: loginData.email.split("@")[0] || "Guest", email: loginData.email || "guest@demo.com" });
+    
+    try {
+      console.log(`Connecting to ${API_URL}/login`);
+      const response = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(loginData),
+      });
+      const data = await response.json();
+
+      if (data.message === "success") {
+        onLogin({ username: data.username, email: loginData.email });
+      } else {
+        alert("이메일 또는 비밀번호가 일치하지 않습니다.");
+      }
+    } catch (error: any) {
+      console.error("Login Error:", error);
+      alert(`서버 연결에 실패했습니다: ${error.message}`);
+    }
   };
 
   return (
