@@ -971,16 +971,7 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const theme = isDarkMode ? colors.dark : colors.light;
   
-  // import.meta.env 접근 안전 장치
-  const getApiUrl = () => {
-    try {
-      return import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
-    } catch {
-      return "http://127.0.0.1:8000/api";
-    }
-  };
-  const API_URL = getApiUrl();
-
+  // 로컬 스토리지 기반 인증 핸들러
   const handleSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
     const nameRegex = /^[가-힣]{2,5}$/;
@@ -988,25 +979,27 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(signUpData.email)) return alert("올바른 이메일 형식을 입력해주세요.");
     if (signUpData.password.length < 8) return alert("비밀번호는 8자 이상 입력해주세요.");
-    
+
     try {
-      console.log(`Connecting to ${API_URL}/signup`);
-      const response = await fetch(`${API_URL}/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(signUpData),
-      });
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert("회원가입 성공! 이제 로그인해주세요.");
-        setIsActive(false); // 로그인 화면으로 전환
-      } else {
-        alert(data.message || "회원가입 실패");
+      // 로컬 스토리지에서 기존 유저 확인
+      const users = safeParseJSON("my_scheduler_users", []);
+      const existingUser = users.find((u: any) => u.email === signUpData.email);
+
+      if (existingUser) {
+        alert("이미 가입된 이메일입니다.");
+        return;
       }
+
+      // 새 유저 저장
+      const newUser = { ...signUpData, createdAt: new Date() };
+      users.push(newUser);
+      localStorage.setItem("my_scheduler_users", JSON.stringify(users));
+
+      alert("회원가입 성공! 이제 로그인해주세요.");
+      setIsActive(false); // 로그인 화면으로 전환
     } catch (error: any) {
       console.error("Signup Error:", error);
-      alert(`서버 연결에 실패했습니다: ${error.message}`);
+      alert(`오류가 발생했습니다: ${error.message}`);
     }
   };
 
@@ -1015,22 +1008,18 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     if (!loginData.email) return alert("이메일을 입력해주세요.");
     
     try {
-      console.log(`Connecting to ${API_URL}/login`);
-      const response = await fetch(`${API_URL}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginData),
-      });
-      const data = await response.json();
+      // 로컬 스토리지에서 유저 찾기
+      const users = safeParseJSON("my_scheduler_users", []);
+      const matchedUser = users.find((u: any) => u.email === loginData.email && u.password === loginData.password);
 
-      if (data.message === "success") {
-        onLogin({ username: data.username, email: loginData.email });
+      if (matchedUser) {
+        onLogin({ username: matchedUser.name, email: matchedUser.email });
       } else {
         alert("이메일 또는 비밀번호가 일치하지 않습니다.");
       }
     } catch (error: any) {
       console.error("Login Error:", error);
-      alert(`서버 연결에 실패했습니다: ${error.message}`);
+      alert(`오류가 발생했습니다: ${error.message}`);
     }
   };
 
