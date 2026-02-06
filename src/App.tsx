@@ -59,10 +59,16 @@ interface Todo {
   tags?: string[];
 }
 
+// ----------------------------------------------------------------------
+// 1-2. Type Definitions
+// ----------------------------------------------------------------------
 interface User {
+  id: string; // Added UUID for Supabase
   username: string;
   email: string;
 }
+
+
 
 interface Category {
   id: string;
@@ -215,14 +221,7 @@ const colors = {
 // 2. TodoList Component
 // ----------------------------------------------------------------------
 function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onLogout: () => void; isDarkMode: boolean; toggleTheme: () => void }) {
-  const [todos, setTodos] = useState<Todo[]>(() => {
-    const parsed = safeParseJSON(`my_scheduler_todos_${user.email}`, []);
-    return parsed.map((t: any) => ({
-      ...t,
-      createdAt: new Date(t.createdAt),
-      dueDate: t.dueDate ? new Date(t.dueDate) : undefined
-    }));
-  });
+  const [todos, setTodos] = useState<Todo[]>([]);
 
   const [categories, setCategories] = useState<Category[]>(() => {
     const parsed = safeParseJSON(`my_scheduler_categories_${user.email}`, []);
@@ -242,39 +241,60 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     ];
   });
 
-  const [habits, setHabits] = useState<Habit[]>(() => {
-    const parsed = safeParseJSON(`my_scheduler_habits_${user.email}`, []);
-    const defaultHabits = [
-      { id: "exercise", name: "운동", icon: <Dumbbell size={20}/>, color: "#EF4444", completedDates: [] },
-      { id: "diet", name: "식단", icon: <Utensils size={20}/>, color: "#10B981", completedDates: [] },
-      { id: "running", name: "러닝", icon: <Wind size={20}/>, color: "#3B82F6", completedDates: [] },
-      { id: "diary", name: "일기", icon: <Book size={20}/>, color: "#F59E0B", completedDates: [] },
-      { id: "reading", name: "독서", icon: <BookOpen size={20}/>, color: "#A855F7", completedDates: [] }, 
-    ];
-
-    return defaultHabits.map(def => {
-      const found = parsed.find((p: any) => p.id === def.id);
-      return found ? { ...def, completedDates: found.completedDates } : def;
-    });
-  });
+  const [habits, setHabits] = useState<Habit[]>(() => [
+    { id: "exercise", name: "운동", icon: <Dumbbell size={20}/>, color: "#EF4444", completedDates: [] },
+    { id: "diet", name: "식단", icon: <Utensils size={20}/>, color: "#10B981", completedDates: [] },
+    { id: "running", name: "러닝", icon: <Wind size={20}/>, color: "#3B82F6", completedDates: [] },
+    { id: "diary", name: "일기", icon: <Book size={20}/>, color: "#F59E0B", completedDates: [] },
+    { id: "reading", name: "독서", icon: <BookOpen size={20}/>, color: "#A855F7", completedDates: [] },
+  ]);
 
   const [deletedTodo, setDeletedTodo] = useState<{ item: Todo, index: number } | null>(null);
   const [showToast, setShowToast] = useState(false);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(`my_scheduler_todos_${user.email}`, JSON.stringify(todos));
-  }, [todos, user.email]);
+    const fetchData = async () => {
+      // 1. Fetch Todos
+      const { data: todosData, error: todosError } = await supabase
+        .from('schedules')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+        
+      if (todosError) console.error('Error fetching todos:', todosError);
+      else if (todosData) {
+        setTodos(todosData.map((t: any) => ({
+          id: t.id,
+          text: t.text,
+          completed: t.completed,
+          createdAt: new Date(t.created_at),
+          categoryId: t.category_id,
+          dueDate: t.due_date ? new Date(t.due_date) : undefined,
+          location: t.location,
+          time: t.time,
+          priority: t.priority,
+          tags: t.tags
+        })));
+      }
 
-  useEffect(() => {
-    const catsToSave = categories.map(c => ({ id: c.id, name: c.name, color: c.color }));
-    localStorage.setItem(`my_scheduler_categories_${user.email}`, JSON.stringify(catsToSave));
-  }, [categories, user.email]);
+      // 2. Fetch Habit Completions
+      const { data: habitsData, error: habitsError } = await supabase
+        .from('habit_completions')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (habitsError) console.error('Error fetching habits:', habitsError);
+      else if (habitsData) {
+        setHabits(prev => prev.map(h => ({
+           ...h,
+           completedDates: habitsData.filter((d: any) => d.habit_id === h.id).map((d: any) => d.completed_date)
+        })));
+      }
+    };
 
-  useEffect(() => {
-    const habitsToSave = habits.map(h => ({ id: h.id, name: h.name, completedDates: h.completedDates, color: h.color }));
-    localStorage.setItem(`my_scheduler_habits_${user.email}`, JSON.stringify(habitsToSave));
-  }, [habits, user.email]);
+    fetchData();
+  }, [user.id]);
 
   const [inputValue, setInputValue] = useState("");
   const [inputLocation, setInputLocation] = useState("");
@@ -394,32 +414,50 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     return { cleanText: text, time: timeString, location };
   };
 
-  const addTodo = () => {
+  const addTodo = async () => {
     if (inputValue.trim() === "") return alert("할 일을 입력해 주세요!");
     
     // Apply Smart Parsing
     const parsed = parseSmartInput(inputValue);
-    const { tags, cleanText } = extractTags(parsed.cleanText); // Extract tags from the remaining text
-    
-    // Determine final values (Manual selection overrides smart parsing? No, user wants automatic. 
-    // Let's say: if Smart Parse found something, use it. Otherwise fall back to manual state.)
-    // Actually user said "Add AS IF selected", so parsed values should take precedence or fill in.
+    const { tags, cleanText } = extractTags(parsed.cleanText); 
     
     const finalTime = parsed.time || (isTimeEnabled ? `${timeAmpm} ${timeHour}:${timeMinute}` : undefined);
     const finalLocation = parsed.location || (inputLocation.trim() || undefined);
 
-    const newTodo: Todo = {
-      id: Date.now(),
+    const newTodoPayload = {
+      user_id: user.id,
       text: cleanText || parsed.cleanText,
       completed: false,
-      createdAt: new Date(),
-      dueDate: inputDate,
-      categoryId: selectedCategoryId === "all" ? undefined : selectedCategoryId,
+      created_at: new Date().toISOString(),
+      category_id: selectedCategoryId === "all" ? undefined : selectedCategoryId,
+      due_date: inputDate ? inputDate.toISOString() : null,
       location: finalLocation,
       time: finalTime,
       priority: false,
       tags: tags
     };
+
+    const { data, error } = await supabase.from('schedules').insert(newTodoPayload).select().single();
+
+    if (error) {
+       console.error('Error adding todo:', error);
+       alert('일정 추가 실패');
+       return;
+    }
+
+    const newTodo: Todo = {
+      id: data.id,
+      text: data.text,
+      completed: data.completed,
+      createdAt: new Date(data.created_at),
+      categoryId: data.category_id,
+      dueDate: data.due_date ? new Date(data.due_date) : undefined,
+      location: data.location,
+      time: data.time,
+      priority: data.priority,
+      tags: data.tags
+    };
+
     setTodos([newTodo, ...todos]);
     setInputValue("");
     setInputLocation("");
@@ -435,9 +473,20 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     setEditText(text);
   };
 
-  const saveEdit = (id: number) => {
+  const saveEdit = async (id: number) => {
     if (editText.trim() === "") return;
     const { tags, cleanText } = extractTags(editText);
+    
+    const { error } = await supabase.from('schedules').update({
+        text: cleanText || editText,
+        tags: tags
+    }).eq('id', id);
+
+    if (error) {
+        console.error('Error updating todo:', error);
+        return;
+    }
+
     setTodos(todos.map(t => t.id === id ? { ...t, text: cleanText || editText, tags: tags } : t));
     setEditingId(null);
     setEditText("");
@@ -471,12 +520,30 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     if (window.confirm("메모를 전부 지우시겠습니까?")) setTodos([]);
   };
 
-  const toggleTodo = (id: number) => setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggleTodo = async (id: number) => {
+     const todo = todos.find(t => t.id === id);
+     if (!todo) return;
+
+     const { error } = await supabase.from('schedules').update({ completed: !todo.completed }).eq('id', id);
+     
+     if (error) {
+       console.error('Error toggling:', error);
+       return;
+     }
+
+     setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
   
-  const deleteTodo = (id: number) => {
+  const deleteTodo = async (id: number) => {
     const todoToDelete = todos.find(t => t.id === id);
     const index = todos.findIndex(t => t.id === id);
     if (todoToDelete) {
+      const { error } = await supabase.from('schedules').delete().eq('id', id);
+      if (error) {
+        console.error('Error deleting:', error);
+        return;
+      }
+
       setDeletedTodo({ item: todoToDelete, index });
       setTodos(todos.filter(t => t.id !== id));
       setShowToast(true);
@@ -488,10 +555,35 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     }
   };
 
-  const undoDelete = () => {
+  const undoDelete = async () => {
     if (deletedTodo) {
+      const item = deletedTodo.item;
+      // Re-insert to DB (New ID generated)
+      const newPayload = {
+          user_id: user.id,
+          text: item.text,
+          completed: item.completed,
+          created_at: item.createdAt.toISOString(),
+          category_id: item.categoryId,
+          due_date: item.dueDate ? item.dueDate.toISOString() : null,
+          location: item.location,
+          time: item.time,
+          priority: item.priority,
+          tags: item.tags
+      };
+
+      const { data, error } = await supabase.from('schedules').insert(newPayload).select().single();
+      
+      if (error) {
+          console.error('Error undoing delete:', error);
+          alert('되돌리기 실패');
+          return;
+      }
+
+      const restoredTodo = { ...item, id: data.id }; // Use new ID from DB
+
       const newTodos = [...todos];
-      newTodos.splice(deletedTodo.index, 0, deletedTodo.item);
+      newTodos.splice(deletedTodo.index, 0, restoredTodo);
       setTodos(newTodos);
       setShowToast(false);
       setDeletedTodo(null);
@@ -502,10 +594,32 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
   const togglePriority = (id: number) => setTodos(todos.map(t => t.id === id ? { ...t, priority: !t.priority } : t));
   const clearCompleted = () => setTodos(todos.filter(t => !t.completed));
 
-  const toggleHabit = (habitId: string) => {
+  const toggleHabit = async (habitId: string) => {
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+
+    const isCompleted = habit.completedDates.includes(currentHabitDate);
+    
+    // Optimistic Update First? Or DB First? 
+    // Let's do DB first for safety, or parallel. 
+    // I'll do DB first but async (no await blocking UI entirely needed, but safe state update).
+    
+    if (isCompleted) {
+        await supabase.from('habit_completions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('habit_id', habitId)
+          .eq('completed_date', currentHabitDate);
+    } else {
+        await supabase.from('habit_completions').insert({
+            user_id: user.id,
+            habit_id: habitId,
+            completed_date: currentHabitDate
+        });
+    }
+
     setHabits(habits.map(h => {
       if (h.id === habitId) {
-        const isCompleted = h.completedDates.includes(currentHabitDate);
         return {
           ...h,
           completedDates: isCompleted 
@@ -987,16 +1101,22 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 // ----------------------------------------------------------------------
 // 3. Login Page Component
 // ----------------------------------------------------------------------
+import { supabase } from "./lib/supabaseClient";
+
 // ----------------------------------------------------------------------
 // 3. Login Page Component
-// ----------------------------------------------------------------------
 function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User) => void; isDarkMode: boolean; toggleTheme: () => void }) {
   const [isActive, setIsActive] = useState(false);
   const [signUpData, setSignUpData] = useState({ name: "", email: "", password: "" });
   const [loginData, setLoginData] = useState({ email: "", password: "" });
+  
+  // 비밀번호 찾기 관련 State
+  const [forgotPwMode, setForgotPwMode] = useState<'none' | 'verify'>('none');
+  const [verifyData, setVerifyData] = useState({ name: "", email: "" });
+  
   const theme = isDarkMode ? colors.dark : colors.light;
   
-  // 로컬 스토리지 기반 인증 핸들러
+  // Supabase Auth Handlers
   const handleSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
     const name = signUpData.name.trim();
@@ -1010,25 +1130,18 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     if (password.length < 8) return alert("비밀번호는 8자 이상 입력해주세요.");
 
     try {
-      // 로컬 스토리지에서 기존 유저 확인
-      const users = safeParseJSON("my_scheduler_users", []);
-      console.log("[SignUp] Current Users:", users); // Debug log
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name }, // Store name in metadata
+        },
+      });
 
-      const existingUser = users.find((u: any) => u.email === email);
+      if (error) throw error;
 
-      if (existingUser) {
-        alert("이미 가입된 이메일입니다.");
-        return;
-      }
-
-      // 새 유저 저장
-      const newUser = { name, email, password, createdAt: new Date() };
-      users.push(newUser);
-      localStorage.setItem("my_scheduler_users", JSON.stringify(users));
-      console.log("[SignUp] Saved New User:", newUser); // Debug log
-
-      alert("회원가입 성공! 이제 로그인해주세요.");
-      setIsActive(false); // 로그인 화면으로 전환
+      alert("회원가입 성공! 이메일을 확인해주세요 (혹은 바로 로그인 가능).");
+      setIsActive(false); 
     } catch (error: any) {
       console.error("Signup Error:", error);
       alert(`오류가 발생했습니다: ${error.message}`);
@@ -1043,23 +1156,36 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     if (!email) return alert("이메일을 입력해주세요.");
     
     try {
-      // 로컬 스토리지에서 유저 찾기
-      const users = safeParseJSON("my_scheduler_users", []);
-      console.log("[Login] Attempting login for:", email); // Debug log
-      console.log("[Login] Stored Users:", users); // Debug log
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      const matchedUser = users.find((u: any) => u.email === email && u.password === password);
-
-      if (matchedUser) {
-        console.log("[Login] Success:", matchedUser); // Debug log
-        onLogin({ username: matchedUser.name, email: matchedUser.email });
-      } else {
-        console.warn("[Login] Failed. No match found."); // Debug log
-        alert("이메일 또는 비밀번호가 일치하지 않습니다.");
-      }
+      if (error) throw error;
+      
+      // onLogin is handled by App's auth listener, but we can call it here too if needed
+      // But typically, the state change in App will trigger the view switch.
     } catch (error: any) {
       console.error("Login Error:", error);
-      alert(`오류가 발생했습니다: ${error.message}`);
+      alert(`로그인 실패: ${error.message}`);
+    }
+  };
+
+  // 비밀번호 찾기 (Supabase Email)
+  const handleVerifyUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = verifyData.email.trim();
+    if (!email) return alert("이메일을 입력해주세요.");
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin, 
+      });
+      if (error) throw error;
+      alert("비밀번호 재설정 링크를 이메일로 보냈습니다. 확인해주세요.");
+      setForgotPwMode('none');
+    } catch (error: any) {
+      alert(`오류: ${error.message}`);
     }
   };
 
@@ -1071,7 +1197,16 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
           <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20" : "bg-black/5"} />
         </div>
         
-        {isActive ? (
+        {forgotPwMode !== 'none' ? (
+           // Forgot Password Forms (Mobile)
+           <form className="w-full flex flex-col items-center mt-8 animate-fadeIn" onSubmit={handleVerifyUser}>
+            <h1 className={`mb-2 text-2xl font-bold ${theme.textMain}`}>비밀번호 찾기</h1>
+            <p className={`mb-6 text-sm ${theme.textSub}`}>가입한 이메일을 입력하시면재설정 링크를 보내드립니다.</p>
+            <input type="email" placeholder="이메일" value={verifyData.email} onChange={(e) => setVerifyData({...verifyData, email: e.target.value})} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            <button type="submit" className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>링크 보내기</button>
+            <button type="button" onClick={() => setForgotPwMode('none')} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>취소</button>
+           </form>
+        ) : isActive ? (
           // Sign Up Form (Mobile)
           <form className="w-full flex flex-col items-center mt-8 animate-fadeIn" onSubmit={handleSignUp}>
             <h1 className={`mb-2 text-2xl font-bold ${theme.textMain}`}>회원가입</h1>
@@ -1097,49 +1232,85 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
             <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
             <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
             
-            <button type="submit" className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>로그인</button>
+            <button type="submit" className={`mt-2 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>로그인</button>
             
             <div className="mt-6 flex items-center gap-2 text-xs">
               <span className={theme.textSub}>아직 회원이 아니신가요?</span>
               <button type="button" onClick={() => setIsActive(true)} className={`font-bold ${theme.textMain} underline`}>회원가입</button>
             </div>
+
+            <button type="button" onClick={() => setForgotPwMode('verify')} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>비밀번호를 잊으셨나요?</button>
           </form>
         )}
       </div>
 
       {/* Desktop View (>= md) */}
       <div className={`hidden md:block relative w-[850px] max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "550px" }}>
-        <div className={`absolute top-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out ${isActive ? "translate-x-full opacity-100 z-[5]" : "translate-x-0 opacity-0 z-[1]"}`}>
-          <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleSignUp}>
-            <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>회원가입</h1>
-            <input type="text" placeholder="이름" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <input type="email" placeholder="이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <input type="password" placeholder="비밀번호" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>가입하기</button>
-          </form>
+        <div className="absolute top-6 right-6 z-10">
+           <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20" : "bg-black/5"} />
         </div>
-        <div className={`absolute top-0 left-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out z-[2] ${isActive ? "translate-x-full" : "translate-x-0"}`}>
-          <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleLogin}>
-            <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>로그인</h1>
-            <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>로그인</button>
-          </form>
+
+        {/* Form Container */}
+        <div className={`absolute top-0 h-full transition-all duration-700 ease-in-out ${isActive ? "left-1/2 w-1/2 opacity-100 z-50 animate-move" : "left-0 w-1/2 opacity-0 z-10"}`}>
+             <form className={`h-full flex flex-col items-center justify-center p-10 text-center ${theme.bg}`} onSubmit={handleSignUp}>
+                <h1 className={`text-3xl font-bold mb-4 ${theme.textMain}`}>회원가입</h1>
+                <div className="flex gap-4 mb-4">
+                  <span className={`p-2 rounded-full border ${theme.border}`}><UserIcon size={16}/></span>
+                  <span className={`p-2 rounded-full border ${theme.border}`}><Briefcase size={16}/></span>
+                  <span className={`p-2 rounded-full border ${theme.border}`}><Heart size={16}/></span>
+                </div>
+                <span className={`text-xs ${theme.textSub} mb-4`}>이메일로 가입하기</span>
+                <input type="text" placeholder="이름 (실명 2~5자)" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
+                <input type="email" placeholder="이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
+                <input type="password" placeholder="비밀번호 (8자 이상)" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
+                <button className={`mt-4 px-10 py-2 rounded-lg font-semibold text-white uppercase tracking-wider ${theme.accent} shadow-md`}>가입하기</button>
+             </form>
         </div>
-        <div className={`absolute top-0 left-1/2 h-full w-1/2 overflow-hidden transition-transform duration-[600ms] ease-in-out z-[100] ${isActive ? "-translate-x-full" : "translate-x-0"}`}>
-          <div className={`relative -left-full h-full w-[200%] ${theme.accent} ${isDarkMode ? "text-white" : "text-[#393E46]"} transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-1/2" : "translate-x-0"}`}>
-            <div className={`absolute top-0 flex h-full w-1/2 flex-col items-center justify-center px-10 text-center transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-0" : "-translate-x-[20%]"}`}>
-              <h1 className="mb-2 text-[32px] font-bold">환영합니다!</h1>
-              <p className="mb-4 opacity-80">계정이 이미 있으신가요?</p>
-              <button onClick={() => setIsActive(false)} className={`mt-2.5 rounded-full border-2 ${isDarkMode ? "border-white text-white hover:bg-white hover:text-[#948979]" : "border-[#393E46] text-[#393E46] hover:bg-[#393E46] hover:text-[#D9CFC7]"} bg-transparent px-12 py-4 text-base font-semibold transition-all active:scale-[0.98]`}>로그인</button>
-            </div>
-            <div className={`absolute top-0 right-0 flex h-full w-1/2 flex-col items-center justify-center px-10 text-center transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-[20%]" : "translate-x-0"}`}>
-              <h1 className="mb-2 text-[32px] font-bold">반갑습니다!</h1>
-              <p className="mb-4 opacity-80">아직 회원이 아니신가요?</p>
-              <button onClick={() => setIsActive(true)} className={`mt-2.5 rounded-full border-2 ${isDarkMode ? "border-white text-white hover:bg-white hover:text-[#948979]" : "border-[#393E46] text-[#393E46] hover:bg-[#393E46] hover:text-[#D9CFC7]"} bg-transparent px-12 py-4 text-base font-semibold transition-all active:scale-[0.98]`}>회원가입</button>
-              <div className="absolute bottom-8 right-8"><ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20 border-white/20" : "bg-white/50 border-black/10"} /></div>
-            </div>
-          </div>
+
+        <div className={`absolute top-0 h-full transition-all duration-700 ease-in-out ${isActive ? "left-1/2 w-1/2 opacity-0 z-10" : "left-0 w-1/2 opacity-100 z-20"}`}>
+             {forgotPwMode !== 'none' ? (
+                // Forgot Password Form (Desktop)
+                <form className={`h-full flex flex-col items-center justify-center p-10 text-center ${theme.bg}`} onSubmit={handleVerifyUser}>
+                  <h1 className={`text-3xl font-bold mb-4 ${theme.textMain}`}>비밀번호 찾기</h1>
+                  <p className={`text-sm ${theme.textSub} mb-6`}>가입한 이메일을 입력하시면<br/>재설정 링크를 보내드립니다.</p>
+                  <input type="email" placeholder="이메일" value={verifyData.email} onChange={(e) => setVerifyData({...verifyData, email: e.target.value})} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
+                  <button className={`mt-4 px-10 py-2 rounded-lg font-semibold text-white uppercase tracking-wider ${theme.accent} shadow-md`}>링크 보내기</button>
+                  <button type="button" onClick={() => setForgotPwMode('none')} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>취소</button>
+                </form>
+             ) : (
+                // Login Form (Desktop)
+                <form className={`h-full flex flex-col items-center justify-center p-10 text-center ${theme.bg}`} onSubmit={handleLogin}>
+                  <h1 className={`text-3xl font-bold mb-4 ${theme.textMain}`}>로그인</h1>
+                  <div className="flex gap-4 mb-4">
+                    <span className={`p-2 rounded-full border ${theme.border}`}><UserIcon size={16}/></span>
+                    <span className={`p-2 rounded-full border ${theme.border}`}><Briefcase size={16}/></span>
+                    <span className={`p-2 rounded-full border ${theme.border}`}><Heart size={16}/></span>
+                  </div>
+                  <span className={`text-xs ${theme.textSub} mb-4`}>이메일로 로그인하기</span>
+                  <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
+                  <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
+                  <button type="button" onClick={() => setForgotPwMode('verify')} className={`w-full text-right text-xs ${theme.textSub} mb-4 hover:underline`}>비밀번호를 잊으셨나요?</button>
+                  <button className={`mt-4 px-10 py-2 rounded-lg font-semibold text-white uppercase tracking-wider ${theme.accent} shadow-md`}>로그인</button>
+                </form>
+             )}
+        </div>
+
+        {/* Overlay Container */}
+        <div className={`absolute top-0 left-1/2 w-1/2 h-full overflow-hidden transition-transform duration-700 ease-in-out z-[100] ${isActive ? "-translate-x-full" : ""}`}>
+             <div className={`bg-gradient-to-r ${isDarkMode ? "from-[#2C2C2E] to-[#1E1E1E]" : "from-[#948979] to-[#D9CFC7]"} text-white relative -left-full h-full w-[200%] transform transition-transform duration-700 ease-in-out flex items-center justify-center ${isActive ? "translate-x-1/2" : "translate-x-0"}`}>
+                
+                <div className={`absolute w-1/2 h-full flex flex-col items-center justify-center px-8 text-center top-0 transform transition-transform duration-700 ease-in-out ${isActive ? "translate-x-0" : "-translate-x-[20%]"}`}>
+                   <h1 className="text-3xl font-bold mb-4">반가워요!</h1>
+                   <p className="text-sm mb-8">아직 회원이 아니신가요?<br/>회원가입하고 나만의 일정을 관리해보세요.</p>
+                   <button className="bg-transparent border border-white px-10 py-2 rounded-lg font-semibold uppercase tracking-wider" onClick={() => setIsActive(true)}>회원가입</button>
+                </div>
+
+                <div className={`absolute w-1/2 h-full flex flex-col items-center justify-center px-8 text-center top-0 right-0 transform transition-transform duration-700 ease-in-out ${isActive ? "translate-x-[20%]" : "translate-x-0"}`}>
+                   <h1 className="text-3xl font-bold mb-4">환영합니다!</h1>
+                   <p className="text-sm mb-8">이미 계정이 있으신가요?<br/>로그인하고 일정을 확인하세요.</p>
+                   <button className="bg-transparent border border-white px-10 py-2 rounded-lg font-semibold uppercase tracking-wider" onClick={() => setIsActive(false)}>로그인</button>
+                </div>
+             </div>
         </div>
       </div>
     </div>
@@ -1150,22 +1321,51 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
 // 4. Main App Component
 // ----------------------------------------------------------------------
 export function App() {
-  const [user, setUser] = useState<User | null>(() => {
-    return safeParseJSON('my_scheduler_user', null);
-  });
-  
+  const [user, setUser] = useState<User | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
   
+  useEffect(() => {
+    // 1. 초기 세션 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({ 
+          id: session.user.id,
+          username: session.user.user_metadata.name || "User", 
+          email: session.user.email || "" 
+        });
+      }
+    });
+
+    // 2. Auth 상태 변경 리스너
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({ 
+          id: session.user.id,
+          username: session.user.user_metadata.name || "User", 
+          email: session.user.email || "" 
+        });
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+  
   const handleLogin = (loggedInUser: User) => {
-    setUser(loggedInUser);
-    localStorage.setItem('my_scheduler_user', JSON.stringify(loggedInUser));
+    // Legacy support or fallback if needed
+    // The onAuthStateChange listener will typically handle setting the user after a successful Supabase login.
+    // This line might be removed if the listener is sufficient.
+    setUser(loggedInUser); 
   };
   
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('my_scheduler_user');
   };
 
   if (user) {
