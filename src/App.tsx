@@ -559,7 +559,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
   const isOverlayVisible = showDatePicker || activeTimeDropdown !== null;
 
   return (
-    <div className={`flex flex-col min-h-screen w-full ${theme.bg} ${theme.textMain} transition-colors duration-300 font-sans`}>
+    <div className={`flex flex-col h-[100dvh] w-full ${theme.bg} ${theme.textMain} transition-colors duration-300 font-sans overflow-hidden`}>
       {isOverlayVisible && (
         <div className="fixed inset-0 z-40 bg-black/5 backdrop-blur-[2px] transition-all duration-300 pointer-events-none" />
       )}
@@ -582,11 +582,11 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
             </div>
             <div>
               <p className={`font-semibold ${theme.textMain}`}>{user.username}님</p>
-              <p className={`text-xs ${theme.textSub}`}>{user.email}</p>
+              <p className={`text-xs ${theme.textSub} hidden md:block`}>{user.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${isDarkMode ? "bg-[#2C2C2E] border-[#393E46]" : "bg-white border-[#D9CFC7]"}`}>
+            <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${isDarkMode ? "bg-[#2C2C2E] border-[#393E46]" : "bg-white border-[#D9CFC7]"}`}>
               <Search size={16} className={theme.textSub} />
               <input 
                 type="text" 
@@ -599,8 +599,8 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
             </div>
 
             <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
-            <button onClick={onLogout} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border ${isDarkMode ? "border-[#948979] text-[#948979] hover:bg-[#948979] hover:text-white" : "border-[#D9CFC7] text-[#5c5c5c] hover:bg-[#D9CFC7] hover:text-[#222831]"}`}>
-              <LogOut size={16} /> 로그아웃
+            <button onClick={onLogout} className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border ${isDarkMode ? "border-[#948979] text-[#948979] hover:bg-[#948979] hover:text-white" : "border-[#D9CFC7] text-[#5c5c5c] hover:bg-[#D9CFC7] hover:text-[#222831]"}`}>
+              <LogOut size={16} /> <span className="hidden md:inline">로그아웃</span>
             </button>
           </div>
         </div>
@@ -610,7 +610,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
         {/* Sidebar */}
         <aside className={`w-72 flex flex-col hidden md:flex border-r transition-colors duration-300 ${theme.panel} ${isDarkMode ? 'border-[#222831]' : 'border-[#D9CFC7]'}`}>
           <div className="p-4 flex-1 overflow-y-auto">
-            <h2 className={`text-xs font-semibold uppercase mb-2 px-2 ${theme.textSub}`}>Categories</h2>
+            <h2 className={`text-xs font-semibold uppercase mb-2 px-2 ${theme.textSub}`}>카테고리</h2>
             <ul className="space-y-1 mb-6">
               <li>
                 <button onClick={() => setSelectedCategoryId("all")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${selectedCategoryId === "all" ? `${theme.accent} ${isDarkMode ? 'text-white' : 'text-[#393E46]'}` : `${theme.textMain} ${theme.hover}`}`}>
@@ -642,7 +642,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 
             <div className={`border-t pt-4 ${isDarkMode ? 'border-[#222831]' : 'border-[#D9CFC7]'}`}>
               <div className="flex items-center justify-between mb-3 px-2">
-                <h2 className={`text-xs font-semibold uppercase ${theme.textSub}`}>Calendar</h2>
+                <h2 className={`text-xs font-semibold uppercase ${theme.textSub}`}>캘린더</h2>
                 <div className="flex gap-1">
                   <button onClick={prevMonth} className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${theme.hover}`}><ChevronLeft size={16} /></button>
                   <button onClick={goToToday} className={`text-xs font-medium hover:underline px-2 ${theme.textSub}`}>오늘</button>
@@ -700,7 +700,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
               {/* Tag Cloud Area */}
               {allTags.length > 0 && (
                 <div className="mt-6 px-2">
-                  <h2 className={`text-xs font-semibold uppercase mb-2 ${theme.textSub}`}>Tags</h2>
+                  <h2 className={`text-xs font-semibold uppercase mb-2 ${theme.textSub}`}>태그</h2>
                   <div className="flex flex-wrap gap-2">
                     {allTags.map(tag => (
                       <button 
@@ -724,35 +724,56 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 
         {/* Main Content */}
         <main className={`flex-1 overflow-y-auto ${theme.bg}`}>
-          <div className="max-w-3xl mx-auto px-6 py-10">
+          <div className="max-w-3xl mx-auto p-4 md:px-6 md:py-10">
             <div className="mb-8">
               <h1 className={`text-3xl font-bold flex items-center gap-2 ${theme.textMain}`}>
-                {selectedCategoryId === "all" ? <BookOpen className={isDarkMode ? "text-[#948979]" : "text-[#D9CFC7]"} /> : categories.find(c => c.id === selectedCategoryId)?.icon}
-                <span className="ml-2">{currentCategoryName}</span>
-                {selectedTag && <span className="text-sm font-normal opacity-60 ml-2">#{selectedTag.replace('#','')}</span>}
+                <div className="hidden md:flex items-center gap-2">
+                  {selectedCategoryId === "all" ? <BookOpen className={isDarkMode ? "text-[#948979]" : "text-[#D9CFC7]"} /> : categories.find(c => c.id === selectedCategoryId)?.icon}
+                  <span className="ml-2">{currentCategoryName}</span>
+                  {selectedTag && <span className="text-sm font-normal opacity-60 ml-2">#{selectedTag.replace('#','')}</span>}
+                </div>
+                
+                {/* Mobile Mini Calendar (Static) - Full Width */}
+                <div className="md:hidden w-full p-4 border rounded-2xl shadow-sm bg-card/60 backdrop-blur-sm">
+                  <div className="text-sm font-bold mb-2 text-center leading-none">{monthNames[month]}</div>
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {weekDays.map(d => <div key={d} className="text-[10px] opacity-50 font-medium">{d}</div>)}
+                    {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                       const d = i + 1;
+                       const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                       const isSelected = sidebarSelectedDate && d === sidebarSelectedDate.getDate() && month === sidebarSelectedDate.getMonth() && year === sidebarSelectedDate.getFullYear();
+                       return (
+                         <div key={d} className={`text-[11px] h-6 w-6 flex items-center justify-center rounded-full mx-auto ${isSelected ? theme.accent + ' text-white font-bold' : isToday ? 'bg-gray-200/80 text-black font-semibold' : ''}`}>
+                           {d}
+                         </div>
+                       );
+                    })}
+                  </div>
+                </div>
               </h1>
-              <p className={`mt-2 ${theme.textSub}`}>
+              <p className={`mt-6 md:mt-2 ${theme.textSub}`}>
                 {sidebarSelectedDate ? `${sidebarSelectedDate.getMonth()+1}월 ${sidebarSelectedDate.getDate()}일` : '오늘'}의 습관을 체크해보세요
               </p>
 
               {/* Habit Tracker Buttons */}
-              <div className="flex gap-4 mt-6">
+              <div className="grid grid-cols-5 gap-2 mt-6 w-full">
                 {habits.map((habit) => {
                   const isCompleted = habit.completedDates.includes(currentHabitDate);
                   return (
                     <button 
                       key={habit.id} 
                       onClick={() => toggleHabit(habit.id)}
-                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all duration-300 w-20 
+                      className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-2xl transition-all duration-300 w-full border min-h-[80px]
                         ${isCompleted 
-                          ? `${theme.accent} ${isDarkMode ? 'text-white' : 'text-[#393E46]'} shadow-md transform scale-105` 
-                          : `${theme.panel} ${theme.textMain} hover:opacity-80 border ${theme.border}`
+                          ? `${theme.accent} ${isDarkMode ? 'text-white' : 'text-[#393E46]'} shadow-md border-transparent` 
+                          : `${theme.panel} ${theme.textMain} hover:opacity-80 ${theme.border}`
                         }`}
                     >
-                      <div className={`p-2 rounded-full ${isCompleted ? 'bg-white/20' : 'bg-black/5'}`}>
+                      <div className={`p-1.5 rounded-full ${isCompleted ? 'bg-white/20' : 'bg-black/5'}`}>
                         {habit.icon}
                       </div>
-                      <span className="text-xs font-semibold">{habit.name}</span>
+                      <span className="text-[10px] md:text-xs font-semibold whitespace-nowrap">{habit.name}</span>
                     </button>
                   );
                 })}
@@ -765,6 +786,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
                 value={inputValue} 
                 onChange={(e) => setInputValue(e.target.value)} 
                 onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing) return;
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     addTodo();
@@ -965,6 +987,9 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 // ----------------------------------------------------------------------
 // 3. Login Page Component
 // ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// 3. Login Page Component
+// ----------------------------------------------------------------------
 function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User) => void; isDarkMode: boolean; toggleTheme: () => void }) {
   const [isActive, setIsActive] = useState(false);
   const [signUpData, setSignUpData] = useState({ name: "", email: "", password: "" });
@@ -974,16 +999,22 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
   // 로컬 스토리지 기반 인증 핸들러
   const handleSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
+    const name = signUpData.name.trim();
+    const email = signUpData.email.trim();
+    const password = signUpData.password.trim();
+
     const nameRegex = /^[가-힣]{2,5}$/;
-    if (!nameRegex.test(signUpData.name)) return alert("이름은 한글 2~5글자로 입력해주세요.");
+    if (!nameRegex.test(name)) return alert("이름은 한글 2~5글자로 입력해주세요.");
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(signUpData.email)) return alert("올바른 이메일 형식을 입력해주세요.");
-    if (signUpData.password.length < 8) return alert("비밀번호는 8자 이상 입력해주세요.");
+    if (!emailRegex.test(email)) return alert("올바른 이메일 형식을 입력해주세요.");
+    if (password.length < 8) return alert("비밀번호는 8자 이상 입력해주세요.");
 
     try {
       // 로컬 스토리지에서 기존 유저 확인
       const users = safeParseJSON("my_scheduler_users", []);
-      const existingUser = users.find((u: any) => u.email === signUpData.email);
+      console.log("[SignUp] Current Users:", users); // Debug log
+
+      const existingUser = users.find((u: any) => u.email === email);
 
       if (existingUser) {
         alert("이미 가입된 이메일입니다.");
@@ -991,9 +1022,10 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
       }
 
       // 새 유저 저장
-      const newUser = { ...signUpData, createdAt: new Date() };
+      const newUser = { name, email, password, createdAt: new Date() };
       users.push(newUser);
       localStorage.setItem("my_scheduler_users", JSON.stringify(users));
+      console.log("[SignUp] Saved New User:", newUser); // Debug log
 
       alert("회원가입 성공! 이제 로그인해주세요.");
       setIsActive(false); // 로그인 화면으로 전환
@@ -1005,16 +1037,24 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!loginData.email) return alert("이메일을 입력해주세요.");
+    const email = loginData.email.trim();
+    const password = loginData.password.trim();
+
+    if (!email) return alert("이메일을 입력해주세요.");
     
     try {
       // 로컬 스토리지에서 유저 찾기
       const users = safeParseJSON("my_scheduler_users", []);
-      const matchedUser = users.find((u: any) => u.email === loginData.email && u.password === loginData.password);
+      console.log("[Login] Attempting login for:", email); // Debug log
+      console.log("[Login] Stored Users:", users); // Debug log
+
+      const matchedUser = users.find((u: any) => u.email === email && u.password === password);
 
       if (matchedUser) {
+        console.log("[Login] Success:", matchedUser); // Debug log
         onLogin({ username: matchedUser.name, email: matchedUser.email });
       } else {
+        console.warn("[Login] Failed. No match found."); // Debug log
         alert("이메일 또는 비밀번호가 일치하지 않습니다.");
       }
     } catch (error: any) {
@@ -1024,34 +1064,77 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
   };
 
   return (
-    <div className={`flex min-h-screen items-center justify-center ${theme.bg} transition-colors duration-300`}>
-      <div className={`relative w-[850px] max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "550px" }}>
+    <div className={`flex min-h-[100dvh] items-center justify-center ${theme.bg} transition-colors duration-300 p-4`}>
+      {/* Mobile View (< md) */}
+      <div className={`md:hidden relative w-full max-w-sm overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border} p-8 flex flex-col items-center text-center`}>
+        <div className="absolute top-4 right-4">
+          <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20" : "bg-black/5"} />
+        </div>
+        
+        {isActive ? (
+          // Sign Up Form (Mobile)
+          <form className="w-full flex flex-col items-center mt-8 animate-fadeIn" onSubmit={handleSignUp}>
+            <h1 className={`mb-2 text-2xl font-bold ${theme.textMain}`}>회원가입</h1>
+            <p className={`mb-6 text-sm ${theme.textSub}`}>새로운 계정을 만들어보세요!</p>
+            
+            <input type="text" placeholder="이름 (실명 2~5자)" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            <input type="email" placeholder="이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            <input type="password" placeholder="비밀번호 (8자 이상)" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            
+            <button type="submit" className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>가입하기</button>
+            
+            <div className="mt-6 flex items-center gap-2 text-xs">
+              <span className={theme.textSub}>이미 계정이 있으신가요?</span>
+              <button type="button" onClick={() => setIsActive(false)} className={`font-bold ${theme.textMain} underline`}>로그인</button>
+            </div>
+          </form>
+        ) : (
+          // Login Form (Mobile)
+          <form className="w-full flex flex-col items-center mt-8 animate-fadeIn" onSubmit={handleLogin}>
+            <h1 className={`mb-2 text-2xl font-bold ${theme.textMain}`}>로그인</h1>
+            <p className={`mb-6 text-sm ${theme.textSub}`}>오늘의 일정을 확인해보세요!</p>
+
+            <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            
+            <button type="submit" className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>로그인</button>
+            
+            <div className="mt-6 flex items-center gap-2 text-xs">
+              <span className={theme.textSub}>아직 회원이 아니신가요?</span>
+              <button type="button" onClick={() => setIsActive(true)} className={`font-bold ${theme.textMain} underline`}>회원가입</button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Desktop View (>= md) */}
+      <div className={`hidden md:block relative w-[850px] max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "550px" }}>
         <div className={`absolute top-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out ${isActive ? "translate-x-full opacity-100 z-[5]" : "translate-x-0 opacity-0 z-[1]"}`}>
           <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleSignUp}>
-            <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>Create Account</h1>
-            <input type="text" placeholder="Name" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <input type="email" placeholder="Email" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <input type="password" placeholder="Password" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>Sign Up</button>
+            <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>회원가입</h1>
+            <input type="text" placeholder="이름" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
+            <input type="email" placeholder="이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
+            <input type="password" placeholder="비밀번호" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
+            <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>가입하기</button>
           </form>
         </div>
         <div className={`absolute top-0 left-0 h-full w-1/2 transition-all duration-[600ms] ease-in-out z-[2] ${isActive ? "translate-x-full" : "translate-x-0"}`}>
           <form className={`flex h-full flex-col items-center justify-center ${theme.panel} px-12 py-8 text-center`} onSubmit={handleLogin}>
-            <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>Sign In</h1>
-            <input type="email" placeholder="Email" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <input type="password" placeholder="Password" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
-            <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>Sign In</button>
+            <h1 className={`mb-5 text-[32px] font-bold ${theme.textMain}`}>로그인</h1>
+            <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
+            <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-base outline-none transition-all focus:ring-[1px] focus:ring-[#948979]`} />
+            <button type="submit" className={`mt-5 rounded-full ${theme.accent} px-12 py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-80 transition-transform active:scale-[0.98]`}>로그인</button>
           </form>
         </div>
         <div className={`absolute top-0 left-1/2 h-full w-1/2 overflow-hidden transition-transform duration-[600ms] ease-in-out z-[100] ${isActive ? "-translate-x-full" : "translate-x-0"}`}>
           <div className={`relative -left-full h-full w-[200%] ${theme.accent} ${isDarkMode ? "text-white" : "text-[#393E46]"} transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-1/2" : "translate-x-0"}`}>
             <div className={`absolute top-0 flex h-full w-1/2 flex-col items-center justify-center px-10 text-center transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-0" : "-translate-x-[20%]"}`}>
-              <h1 className="mb-2 text-[32px] font-bold">Welcome Back!</h1>
+              <h1 className="mb-2 text-[32px] font-bold">환영합니다!</h1>
               <p className="mb-4 opacity-80">계정이 이미 있으신가요?</p>
               <button onClick={() => setIsActive(false)} className={`mt-2.5 rounded-full border-2 ${isDarkMode ? "border-white text-white hover:bg-white hover:text-[#948979]" : "border-[#393E46] text-[#393E46] hover:bg-[#393E46] hover:text-[#D9CFC7]"} bg-transparent px-12 py-4 text-base font-semibold transition-all active:scale-[0.98]`}>로그인</button>
             </div>
             <div className={`absolute top-0 right-0 flex h-full w-1/2 flex-col items-center justify-center px-10 text-center transition-transform duration-[600ms] ease-in-out ${isActive ? "translate-x-[20%]" : "translate-x-0"}`}>
-              <h1 className="mb-2 text-[32px] font-bold">Hello, Friend!</h1>
+              <h1 className="mb-2 text-[32px] font-bold">반갑습니다!</h1>
               <p className="mb-4 opacity-80">아직 회원이 아니신가요?</p>
               <button onClick={() => setIsActive(true)} className={`mt-2.5 rounded-full border-2 ${isDarkMode ? "border-white text-white hover:bg-white hover:text-[#948979]" : "border-[#393E46] text-[#393E46] hover:bg-[#393E46] hover:text-[#D9CFC7]"} bg-transparent px-12 py-4 text-base font-semibold transition-all active:scale-[0.98]`}>회원가입</button>
               <div className="absolute bottom-8 right-8"><ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20 border-white/20" : "bg-white/50 border-black/10"} /></div>

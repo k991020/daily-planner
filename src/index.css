@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  background-color: #f9f8f6; /* Default light theme bg to prevent white flashes */
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body,
+  #root {
+    background-color: #222831; /* Dark theme bg */
+  }
+}
