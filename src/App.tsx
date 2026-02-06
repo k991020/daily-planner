@@ -1301,6 +1301,11 @@ function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleThe
             <button type="button" onClick={() => setForgotPwMode('verify')} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>비밀번호를 잊으셨나요?</button>
           </form>
         )}
+        
+        {/* Creator Credit */}
+        <div className="absolute bottom-4 left-4 text-xs opacity-60">
+          <p className={theme.textSub}>제작 @ho2jun_ (김회준)</p>
+        </div>
       </div>
 
       {/* Desktop View (>= md) */}
@@ -1377,6 +1382,11 @@ function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleThe
               </>
             )}
           </div>
+        </div>
+        
+        {/* Creator Credit */}
+        <div className="absolute bottom-4 left-6 text-xs opacity-60 z-[150]">
+          <p className={theme.textSub}>제작 @ho2jun_ (김회준)</p>
         </div>
       </div>
     </div>
