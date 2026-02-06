@@ -361,7 +361,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const getTodosForDate = (date: Date) => todos.filter((todo) => todo.dueDate && isSameDay(todo.dueDate, date));
+
 
   // Smart Parsing Logic
   const parseSmartInput = (input: string) => {
@@ -506,12 +506,26 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     setIsAddingCategory(false);
   };
 
-  const handleDeleteCategory = (catId: string, catName: string) => {
+  const handleDeleteCategory = async (catId: string, catName: string) => {
     if (["personal", "work", "shopping"].includes(catId)) return alert("기본 카테고리는 삭제할 수 없습니다.");
     if (window.confirm(`'${catName}' 카테고리를 정말 삭제하시겠습니까?`)) {
       setCategories(prev => prev.filter(c => c.id !== catId));
+      
+      // Optimistic update for todos
       setTodos(prevTodos => prevTodos.map(todo => todo.categoryId === catId ? { ...todo, categoryId: undefined } : todo));
       if (selectedCategoryId === catId) setSelectedCategoryId("all");
+
+      // Update Supabase to clear category reference
+      const { error } = await supabase.from('schedules')
+        .update({ category_id: null })
+        .eq('user_id', user.id)
+        .eq('category_id', catId);
+        
+      if (error) {
+        console.error("Error clearing category from todos:", error);
+        // We technically should revert, but for a category delete, it's rare to fail. 
+        // Just logging it is acceptable for now.
+      }
     }
   };
 
@@ -524,14 +538,17 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
      const todo = todos.find(t => t.id === id);
      if (!todo) return;
 
+     // Optimistic Update
+     const previousTodos = [...todos];
+     setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+
      const { error } = await supabase.from('schedules').update({ completed: !todo.completed }).eq('id', id);
      
      if (error) {
        console.error('Error toggling:', error);
-       return;
+       setTodos(previousTodos); // Revert on error
+       alert("상태 업데이트 실패");
      }
-
-     setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
   
   const deleteTodo = async (id: number) => {
@@ -599,25 +616,9 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     if (!habit) return;
 
     const isCompleted = habit.completedDates.includes(currentHabitDate);
-    
-    // Optimistic Update First? Or DB First? 
-    // Let's do DB first for safety, or parallel. 
-    // I'll do DB first but async (no await blocking UI entirely needed, but safe state update).
-    
-    if (isCompleted) {
-        await supabase.from('habit_completions')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('habit_id', habitId)
-          .eq('completed_date', currentHabitDate);
-    } else {
-        await supabase.from('habit_completions').insert({
-            user_id: user.id,
-            habit_id: habitId,
-            completed_date: currentHabitDate
-        });
-    }
+    const previousHabits = [...habits];
 
+    // Optimistic Update
     setHabits(habits.map(h => {
       if (h.id === habitId) {
         return {
@@ -629,6 +630,30 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
       }
       return h;
     }));
+    
+    // Background DB Update
+    let error;
+    if (isCompleted) {
+        const { error: delError } = await supabase.from('habit_completions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('habit_id', habitId)
+          .eq('completed_date', currentHabitDate);
+        error = delError;
+    } else {
+        const { error: insError } = await supabase.from('habit_completions').insert({
+            user_id: user.id,
+            habit_id: habitId,
+            completed_date: currentHabitDate
+        });
+        error = insError;
+    }
+
+    if (error) {
+      console.error('Error toggling habit:', error);
+      setHabits(previousHabits); // Revert
+      alert('습관 업데이트 실패');
+    }
   };
 
   const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
@@ -1105,7 +1130,7 @@ import { supabase } from "./lib/supabaseClient";
 
 // ----------------------------------------------------------------------
 // 3. Login Page Component
-function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User) => void; isDarkMode: boolean; toggleTheme: () => void }) {
+function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleTheme: () => void }) {
   const [isActive, setIsActive] = useState(false);
   const [signUpData, setSignUpData] = useState({ name: "", email: "", password: "" });
   const [loginData, setLoginData] = useState({ email: "", password: "" });
@@ -1130,7 +1155,7 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     if (password.length < 8) return alert("비밀번호는 8자 이상 입력해주세요.");
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -1156,7 +1181,7 @@ function LoginPage({ onLogin, isDarkMode, toggleTheme }: { onLogin: (user: User)
     if (!email) return alert("이메일을 입력해주세요.");
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -1356,13 +1381,6 @@ export function App() {
     return () => subscription.unsubscribe();
   }, []);
   
-  const handleLogin = (loggedInUser: User) => {
-    // Legacy support or fallback if needed
-    // The onAuthStateChange listener will typically handle setting the user after a successful Supabase login.
-    // This line might be removed if the listener is sufficient.
-    setUser(loggedInUser); 
-  };
-  
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -1372,5 +1390,5 @@ export function App() {
     return <TodoList user={user} onLogout={handleLogout} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
   }
 
-  return <LoginPage onLogin={handleLogin} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
+  return <LoginPage isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
 }
