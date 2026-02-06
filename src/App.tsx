@@ -1139,69 +1139,88 @@ function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleThe
   const [forgotPwMode, setForgotPwMode] = useState<'none' | 'verify'>('none');
   const [verifyData, setVerifyData] = useState({ name: "", email: "" });
   
+  // Loading & Error States
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  
   const theme = isDarkMode ? colors.dark : colors.light;
+  
+  // 통일된 입력창 스타일 (항상 흰 배경 + 검은 글씨)
+  const inputStyle = "my-2 w-full bg-white text-[#333333] p-3 rounded-lg text-sm outline-none border border-gray-300 focus:border-[#948979] focus:ring-2 focus:ring-[#948979]/30 transition-all placeholder:text-gray-400";
   
   // Supabase Auth Handlers
   const handleSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
+    setErrorMessage("");
     const name = signUpData.name.trim();
     const email = signUpData.email.trim();
     const password = signUpData.password.trim();
 
     const nameRegex = /^[가-힣]{2,5}$/;
-    if (!nameRegex.test(name)) return alert("이름은 한글 2~5글자로 입력해주세요.");
+    if (!nameRegex.test(name)) { setErrorMessage("이름은 한글 2~5글자로 입력해주세요."); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return alert("올바른 이메일 형식을 입력해주세요.");
-    if (password.length < 8) return alert("비밀번호는 8자 이상 입력해주세요.");
+    if (!emailRegex.test(email)) { setErrorMessage("올바른 이메일 형식을 입력해주세요. (예: example@email.com)"); return; }
+    if (password.length < 8) { setErrorMessage("비밀번호는 8자 이상 입력해주세요."); return; }
 
+    setIsLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: { name }, // Store name in metadata
-        },
+        options: { data: { name } },
       });
-
       if (error) throw error;
-
-      alert("회원가입 성공! 이메일을 확인해주세요 (혹은 바로 로그인 가능).");
+      setErrorMessage("");
+      alert("회원가입 성공! 이메일을 확인해주세요.");
       setIsActive(false); 
     } catch (error: any) {
       console.error("Signup Error:", error);
-      alert(`오류가 발생했습니다: ${error.message}`);
+      if (error.message.includes("already registered")) {
+        setErrorMessage("이미 등록된 이메일입니다. 로그인해주세요.");
+      } else {
+        setErrorMessage(`회원가입 오류: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
+    setErrorMessage("");
     const email = loginData.email.trim();
     const password = loginData.password.trim();
 
-    if (!email) return alert("이메일을 입력해주세요.");
+    if (!email) { setErrorMessage("이메일을 입력해주세요."); return; }
+    if (!password) { setErrorMessage("비밀번호를 입력해주세요."); return; }
     
+    setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      
-      // onLogin is handled by App's auth listener, but we can call it here too if needed
-      // But typically, the state change in App will trigger the view switch.
+      // 로그인 성공 시 App의 auth listener가 자동으로 user 상태 업데이트
     } catch (error: any) {
       console.error("Login Error:", error);
-      alert(`로그인 실패: ${error.message}`);
+      if (error.message.includes("Email not confirmed")) {
+        setErrorMessage("이메일 인증이 필요합니다. 회원가입 시 입력한 이메일의 받은편지함을 확인하고 인증 링크를 클릭해주세요.");
+      } else if (error.message.includes("Invalid login credentials")) {
+        setErrorMessage("이메일 또는 비밀번호가 올바르지 않습니다.");
+      } else {
+        setErrorMessage(`로그인 실패: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // 비밀번호 찾기 (Supabase Email)
   const handleVerifyUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage("");
     const email = verifyData.email.trim();
-    if (!email) return alert("이메일을 입력해주세요.");
+    if (!email) { setErrorMessage("이메일을 입력해주세요."); return; }
     
+    setIsLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin, 
@@ -1210,26 +1229,37 @@ function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleThe
       alert("비밀번호 재설정 링크를 이메일로 보냈습니다. 확인해주세요.");
       setForgotPwMode('none');
     } catch (error: any) {
-      alert(`오류: ${error.message}`);
+      setErrorMessage(`오류: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className={`flex min-h-[100dvh] items-center justify-center ${theme.bg} transition-colors duration-300 p-4`}>
       {/* Mobile View (< md) */}
-      <div className={`md:hidden relative w-full max-w-sm overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border} p-8 flex flex-col items-center text-center`}>
+      <div className={`md:hidden relative w-full max-w-md overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border} p-8 flex flex-col items-center text-center`}>
         <div className="absolute top-4 right-4">
           <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20" : "bg-black/5"} />
         </div>
+        
+        {/* 에러 메시지 표시 */}
+        {errorMessage && (
+          <div className="w-full mt-6 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm text-center">
+            {errorMessage}
+          </div>
+        )}
         
         {forgotPwMode !== 'none' ? (
            // Forgot Password Forms (Mobile)
            <form className="w-full flex flex-col items-center mt-8 animate-fadeIn" onSubmit={handleVerifyUser}>
             <h1 className={`mb-2 text-2xl font-bold ${theme.textMain}`}>비밀번호 찾기</h1>
-            <p className={`mb-6 text-sm ${theme.textSub}`}>가입한 이메일을 입력하시면재설정 링크를 보내드립니다.</p>
-            <input type="email" placeholder="이메일" value={verifyData.email} onChange={(e) => setVerifyData({...verifyData, email: e.target.value})} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
-            <button type="submit" className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>링크 보내기</button>
-            <button type="button" onClick={() => setForgotPwMode('none')} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>취소</button>
+            <p className={`mb-6 text-sm ${theme.textSub}`}>가입한 이메일을 입력하시면 재설정 링크를 보내드립니다.</p>
+            <input type="email" placeholder="이메일" value={verifyData.email} onChange={(e) => setVerifyData({...verifyData, email: e.target.value})} className={inputStyle} />
+            <button type="submit" disabled={isLoading} className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}>
+              {isLoading ? "처리 중..." : "링크 보내기"}
+            </button>
+            <button type="button" onClick={() => { setForgotPwMode('none'); setErrorMessage(""); }} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>취소</button>
            </form>
         ) : isActive ? (
           // Sign Up Form (Mobile)
@@ -1237,15 +1267,17 @@ function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleThe
             <h1 className={`mb-2 text-2xl font-bold ${theme.textMain}`}>회원가입</h1>
             <p className={`mb-6 text-sm ${theme.textSub}`}>새로운 계정을 만들어보세요!</p>
             
-            <input type="text" placeholder="이름 (실명 2~5자)" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
-            <input type="email" placeholder="이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
-            <input type="password" placeholder="비밀번호 (8자 이상)" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            <input type="text" placeholder="이름 (실명 2~5자)" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={inputStyle} />
+            <input type="email" placeholder="실제 이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={inputStyle} />
+            <input type="password" placeholder="비밀번호 (8자 이상)" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={inputStyle} />
             
-            <button type="submit" className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>가입하기</button>
+            <button type="submit" disabled={isLoading} className={`mt-6 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}>
+              {isLoading ? "가입 중..." : "가입하기"}
+            </button>
             
             <div className="mt-6 flex items-center gap-2 text-xs">
               <span className={theme.textSub}>이미 계정이 있으신가요?</span>
-              <button type="button" onClick={() => setIsActive(false)} className={`font-bold ${theme.textMain} underline`}>로그인</button>
+              <button type="button" onClick={() => { setIsActive(false); setErrorMessage(""); }} className={`font-bold ${theme.textMain} underline`}>로그인</button>
             </div>
           </form>
         ) : (
@@ -1254,14 +1286,16 @@ function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleThe
             <h1 className={`mb-2 text-2xl font-bold ${theme.textMain}`}>로그인</h1>
             <p className={`mb-6 text-sm ${theme.textSub}`}>오늘의 일정을 확인해보세요!</p>
 
-            <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
-            <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full rounded-xl border-none ${theme.inputBg} ${theme.textMain} p-4 text-sm outline-none transition-all focus:ring-1 focus:ring-[#948979]`} />
+            <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={inputStyle} />
+            <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={inputStyle} />
             
-            <button type="submit" className={`mt-2 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98]`}>로그인</button>
+            <button type="submit" disabled={isLoading} className={`mt-2 w-full rounded-xl ${theme.accent} py-4 text-base font-bold ${isDarkMode ? "text-white" : "text-[#393E46]"} hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}>
+              {isLoading ? "로그인 중..." : "로그인"}
+            </button>
             
             <div className="mt-6 flex items-center gap-2 text-xs">
               <span className={theme.textSub}>아직 회원이 아니신가요?</span>
-              <button type="button" onClick={() => setIsActive(true)} className={`font-bold ${theme.textMain} underline`}>회원가입</button>
+              <button type="button" onClick={() => { setIsActive(true); setErrorMessage(""); }} className={`font-bold ${theme.textMain} underline`}>회원가입</button>
             </div>
 
             <button type="button" onClick={() => setForgotPwMode('verify')} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>비밀번호를 잊으셨나요?</button>
@@ -1270,72 +1304,79 @@ function LoginPage({ isDarkMode, toggleTheme }: { isDarkMode: boolean; toggleThe
       </div>
 
       {/* Desktop View (>= md) */}
-      <div className={`hidden md:block relative w-[850px] max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "550px" }}>
+      <div className={`hidden md:block relative w-[1200px] max-w-full overflow-hidden rounded-[30px] ${theme.panel} shadow-2xl border ${theme.border}`} style={{ minHeight: "620px" }}>
         <div className="absolute top-6 right-6 z-10">
            <ThemeToggle isDarkMode={isDarkMode} toggleTheme={toggleTheme} className={isDarkMode ? "bg-black/20" : "bg-black/5"} />
         </div>
 
-        {/* Form Container */}
-        <div className={`absolute top-0 h-full transition-all duration-700 ease-in-out ${isActive ? "left-1/2 w-1/2 opacity-100 z-50 animate-move" : "left-0 w-1/2 opacity-0 z-10"}`}>
-             <form className={`h-full flex flex-col items-center justify-center p-10 text-center ${theme.bg}`} onSubmit={handleSignUp}>
-                <h1 className={`text-3xl font-bold mb-4 ${theme.textMain}`}>회원가입</h1>
-                <div className="flex gap-4 mb-4">
-                  <span className={`p-2 rounded-full border ${theme.border}`}><UserIcon size={16}/></span>
-                  <span className={`p-2 rounded-full border ${theme.border}`}><Briefcase size={16}/></span>
-                  <span className={`p-2 rounded-full border ${theme.border}`}><Heart size={16}/></span>
+        {/* Form Container - Sign Up */}
+        <div className={`absolute top-0 h-full overflow-hidden transition-all duration-700 ease-in-out ${isActive ? "left-1/2 w-1/2 opacity-100 z-50" : "left-full w-1/2 opacity-0 z-10 pointer-events-none"}`}>
+             <form className={`h-full min-h-[620px] w-full flex flex-col items-center justify-center px-8 py-12 text-center ${theme.bg}`} onSubmit={handleSignUp}>
+                <div className="w-full max-w-md flex flex-col items-center">
+                  <h1 className={`text-3xl font-bold mb-6 ${theme.textMain}`}>Create Account</h1>
+                  {errorMessage && isActive && <div className="w-full mb-4 p-2 bg-red-100 border border-red-300 text-red-700 rounded-lg text-xs">{errorMessage}</div>}
+                  <input type="text" placeholder="이름 (실명 2~5자)" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={inputStyle} />
+                  <input type="email" placeholder="실제 이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={inputStyle} />
+                  <input type="password" placeholder="비밀번호 (8자 이상)" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={inputStyle} />
+                  <button disabled={isLoading} className={`mt-6 px-10 py-2 rounded-lg font-semibold text-white ${theme.accent} shadow-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}>
+                    {isLoading ? "가입 중..." : "Sign Up"}
+                  </button>
                 </div>
-                <span className={`text-xs ${theme.textSub} mb-4`}>이메일로 가입하기</span>
-                <input type="text" placeholder="이름 (실명 2~5자)" value={signUpData.name} onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
-                <input type="email" placeholder="이메일" value={signUpData.email} onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
-                <input type="password" placeholder="비밀번호 (8자 이상)" value={signUpData.password} onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
-                <button className={`mt-4 px-10 py-2 rounded-lg font-semibold text-white uppercase tracking-wider ${theme.accent} shadow-md`}>가입하기</button>
              </form>
         </div>
 
-        <div className={`absolute top-0 h-full transition-all duration-700 ease-in-out ${isActive ? "left-1/2 w-1/2 opacity-0 z-10" : "left-0 w-1/2 opacity-100 z-20"}`}>
+        {/* Form Container - Login / Forgot Password */}
+        <div className={`absolute top-0 h-full overflow-hidden transition-all duration-700 ease-in-out ${isActive ? "left-1/2 w-1/2 opacity-0 z-10" : "left-0 w-1/2 opacity-100 z-20"}`}>
              {forgotPwMode !== 'none' ? (
                 // Forgot Password Form (Desktop)
-                <form className={`h-full flex flex-col items-center justify-center p-10 text-center ${theme.bg}`} onSubmit={handleVerifyUser}>
-                  <h1 className={`text-3xl font-bold mb-4 ${theme.textMain}`}>비밀번호 찾기</h1>
-                  <p className={`text-sm ${theme.textSub} mb-6`}>가입한 이메일을 입력하시면<br/>재설정 링크를 보내드립니다.</p>
-                  <input type="email" placeholder="이메일" value={verifyData.email} onChange={(e) => setVerifyData({...verifyData, email: e.target.value})} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
-                  <button className={`mt-4 px-10 py-2 rounded-lg font-semibold text-white uppercase tracking-wider ${theme.accent} shadow-md`}>링크 보내기</button>
-                  <button type="button" onClick={() => setForgotPwMode('none')} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>취소</button>
+                <form className={`h-full min-h-[620px] w-full flex flex-col items-center justify-center px-8 py-12 text-center ${theme.bg}`} onSubmit={handleVerifyUser}>
+                  <div className="w-full max-w-md flex flex-col items-center">
+                    <h1 className={`text-3xl font-bold mb-6 ${theme.textMain}`}>Password Reset</h1>
+                    <p className={`text-sm ${theme.textSub} mb-6`}>가입한 이메일을 입력하시면<br/>재설정 링크를 보내드립니다.</p>
+                    {errorMessage && <div className="w-full mb-4 p-2 bg-red-100 border border-red-300 text-red-700 rounded-lg text-xs">{errorMessage}</div>}
+                    <input type="email" placeholder="이메일" value={verifyData.email} onChange={(e) => setVerifyData({...verifyData, email: e.target.value})} className={inputStyle} />
+                    <button disabled={isLoading} className={`mt-6 px-10 py-2 rounded-lg font-semibold text-white ${theme.accent} shadow-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}>
+                      {isLoading ? "처리 중..." : "링크 보내기"}
+                    </button>
+                    <button type="button" onClick={() => { setForgotPwMode('none'); setErrorMessage(""); }} className={`mt-4 text-xs ${theme.textSub} hover:underline`}>취소</button>
+                  </div>
                 </form>
              ) : (
                 // Login Form (Desktop)
-                <form className={`h-full flex flex-col items-center justify-center p-10 text-center ${theme.bg}`} onSubmit={handleLogin}>
-                  <h1 className={`text-3xl font-bold mb-4 ${theme.textMain}`}>로그인</h1>
-                  <div className="flex gap-4 mb-4">
-                    <span className={`p-2 rounded-full border ${theme.border}`}><UserIcon size={16}/></span>
-                    <span className={`p-2 rounded-full border ${theme.border}`}><Briefcase size={16}/></span>
-                    <span className={`p-2 rounded-full border ${theme.border}`}><Heart size={16}/></span>
+                <form className={`h-full min-h-[620px] w-full flex flex-col items-center justify-center px-8 py-12 text-center ${theme.bg}`} onSubmit={handleLogin}>
+                  <div className="w-full max-w-md flex flex-col items-center">
+                    <h1 className={`text-3xl font-bold mb-6 ${theme.textMain}`}>Sign In</h1>
+                    {errorMessage && !isActive && <div className="w-full mb-4 p-2 bg-red-100 border border-red-300 text-red-700 rounded-lg text-xs">{errorMessage}</div>}
+                    <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={inputStyle} />
+                    <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={inputStyle} />
+                    <button type="button" onClick={() => setForgotPwMode('verify')} className={`w-full text-right text-xs ${theme.textSub} mt-2 hover:underline`}>비밀번호를 잊으셨나요?</button>
+                    <button disabled={isLoading} className={`mt-6 px-10 py-2 rounded-lg font-semibold text-white ${theme.accent} shadow-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}>
+                      {isLoading ? "로그인 중..." : "Sign In"}
+                    </button>
                   </div>
-                  <span className={`text-xs ${theme.textSub} mb-4`}>이메일로 로그인하기</span>
-                  <input type="email" placeholder="이메일" value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
-                  <input type="password" placeholder="비밀번호" value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className={`my-2 w-full bg-gray-100 p-3 rounded-lg text-sm outline-none ${theme.inputBg} ${theme.textMain}`} />
-                  <button type="button" onClick={() => setForgotPwMode('verify')} className={`w-full text-right text-xs ${theme.textSub} mb-4 hover:underline`}>비밀번호를 잊으셨나요?</button>
-                  <button className={`mt-4 px-10 py-2 rounded-lg font-semibold text-white uppercase tracking-wider ${theme.accent} shadow-md`}>로그인</button>
                 </form>
              )}
         </div>
 
         {/* Overlay Container */}
-        <div className={`absolute top-0 left-1/2 w-1/2 h-full overflow-hidden transition-transform duration-700 ease-in-out z-[100] ${isActive ? "-translate-x-full" : ""}`}>
-             <div className={`bg-gradient-to-r ${isDarkMode ? "from-[#2C2C2E] to-[#1E1E1E]" : "from-[#948979] to-[#D9CFC7]"} text-white relative -left-full h-full w-[200%] transform transition-transform duration-700 ease-in-out flex items-center justify-center ${isActive ? "translate-x-1/2" : "translate-x-0"}`}>
-                
-                <div className={`absolute w-1/2 h-full flex flex-col items-center justify-center px-8 text-center top-0 transform transition-transform duration-700 ease-in-out ${isActive ? "translate-x-0" : "-translate-x-[20%]"}`}>
-                   <h1 className="text-3xl font-bold mb-4">반가워요!</h1>
-                   <p className="text-sm mb-8">아직 회원이 아니신가요?<br/>회원가입하고 나만의 일정을 관리해보세요.</p>
-                   <button className="bg-transparent border border-white px-10 py-2 rounded-lg font-semibold uppercase tracking-wider" onClick={() => setIsActive(true)}>회원가입</button>
-                </div>
-
-                <div className={`absolute w-1/2 h-full flex flex-col items-center justify-center px-8 text-center top-0 right-0 transform transition-transform duration-700 ease-in-out ${isActive ? "translate-x-[20%]" : "translate-x-0"}`}>
-                   <h1 className="text-3xl font-bold mb-4">환영합니다!</h1>
-                   <p className="text-sm mb-8">이미 계정이 있으신가요?<br/>로그인하고 일정을 확인하세요.</p>
-                   <button className="bg-transparent border border-white px-10 py-2 rounded-lg font-semibold uppercase tracking-wider" onClick={() => setIsActive(false)}>로그인</button>
-                </div>
-             </div>
+        <div className={`absolute top-0 ${isActive ? "left-0" : "left-1/2"} w-1/2 h-full overflow-hidden transition-all duration-700 ease-in-out z-[100]`}>
+          <div className="bg-[#948979] text-white h-full w-full flex flex-col items-center justify-center px-12 text-center">
+            {isActive ? (
+              // Welcome Back! (shown on left when in signup mode)
+              <>
+                <h1 className="text-3xl font-bold mb-4">Welcome Back!</h1>
+                <p className="text-sm mb-8">이미 계정이 있으신가요?<br/>로그인하고 일정을 확인하세요.</p>
+                <button className="bg-transparent border border-white px-10 py-2 rounded-lg font-semibold hover:bg-white/10 transition-colors" onClick={() => setIsActive(false)}>로그인</button>
+              </>
+            ) : (
+              // Hello, Friend! (shown on right when in login mode)
+              <>
+                <h1 className="text-3xl font-bold mb-4">Hello, Friend!</h1>
+                <p className="text-sm mb-8">아직 회원이 아니신가요?<br/>회원가입하고 나만의 일정을 관리해보세요.</p>
+                <button className="bg-transparent border border-white px-10 py-2 rounded-lg font-semibold hover:bg-white/10 transition-colors" onClick={() => setIsActive(true)}>회원가입</button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
