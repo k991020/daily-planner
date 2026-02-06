@@ -1119,6 +1119,11 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
           </div>
         </main>
       </div>
+      
+      {/* Creator Credit */}
+      <div className="fixed bottom-4 left-6 text-xs opacity-60 z-50">
+        <p className={theme.textSub}>제작 @ho2jun_ (김회준)</p>
+      </div>
     </div>
   );
 }
