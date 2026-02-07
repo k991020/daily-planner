@@ -260,21 +260,21 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
         .from('schedules')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('inserted_at', { ascending: false });
         
       if (todosError) console.error('Error fetching todos:', todosError);
       else if (todosData) {
         setTodos(todosData.map((t: any) => ({
           id: t.id,
           task: t.task,
-          completed: t.completed,
-          createdAt: new Date(t.created_at),
+          completed: t.status === 'completed',
+          createdAt: new Date(t.inserted_at),
           categoryId: t.category_id,
           dueDate: t.due_date ? new Date(t.due_date) : undefined,
           location: t.location,
           time: t.time,
           priority: t.priority,
-          tags: t.tags
+          tags: t.tags ? (Array.isArray(t.tags) ? t.tags : [t.tags]) : []
         })));
       }
 
@@ -424,38 +424,45 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     const finalTime = parsed.time || (isTimeEnabled ? `${timeAmpm} ${timeHour}:${timeMinute}` : undefined);
     const finalLocation = parsed.location || (inputLocation.trim() || undefined);
 
+    // Now we can send all columns to the database
     const newTodoPayload = {
       user_id: user.id,
       task: cleanText || parsed.cleanText,
-      completed: false,
-      created_at: new Date().toISOString(),
-      category_id: selectedCategoryId === "all" ? undefined : selectedCategoryId,
+      status: 'pending',
+      category_id: selectedCategoryId === "all" ? null : selectedCategoryId,
       due_date: inputDate ? inputDate.toISOString() : null,
-      location: finalLocation,
-      time: finalTime,
+      location: finalLocation || null,
+      time: finalTime || null,
       priority: false,
-      tags: tags
+      tags: tags.length > 0 ? tags.join(',') : null
     };
+
+    console.log('Sending payload:', JSON.stringify(newTodoPayload, null, 2));
 
     const { data, error } = await supabase.from('schedules').insert(newTodoPayload).select().single();
 
     if (error) {
-       console.error('Error adding todo:', error);
-       alert('일정 추가 실패');
+       console.error('Error adding todo - FULL ERROR:', JSON.stringify(error, null, 2));
+       console.error('Error message:', error.message);
+       console.error('Error details:', error.details);
+       console.error('Error hint:', error.hint);
+       alert(`일정 추가 실패: ${error.message || JSON.stringify(error)}`);
        return;
     }
+
+    console.log('Success! Data received:', data);
 
     const newTodo: Todo = {
       id: data.id,
       task: data.task,
-      completed: data.completed,
-      createdAt: new Date(data.created_at),
+      completed: data.status === 'completed',
+      createdAt: new Date(data.inserted_at),
       categoryId: data.category_id,
       dueDate: data.due_date ? new Date(data.due_date) : undefined,
       location: data.location,
       time: data.time,
       priority: data.priority,
-      tags: data.tags
+      tags: data.tags ? (typeof data.tags === 'string' ? data.tags.split(',') : data.tags) : []
     };
 
     setTodos([newTodo, ...todos]);
@@ -479,7 +486,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     
     const { error } = await supabase.from('schedules').update({
         task: cleanText || editText,
-        tags: tags
+        tags: tags.length > 0 ? tags.join(',') : null
     }).eq('id', id);
 
     if (error) {
@@ -542,7 +549,8 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
      const previousTodos = [...todos];
      setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
 
-     const { error } = await supabase.from('schedules').update({ completed: !todo.completed }).eq('id', id);
+     const newStatus = !todo.completed ? 'completed' : 'pending';
+     const { error } = await supabase.from('schedules').update({ status: newStatus }).eq('id', id);
      
      if (error) {
        console.error('Error toggling:', error);
@@ -575,18 +583,17 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
   const undoDelete = async () => {
     if (deletedTodo) {
       const item = deletedTodo.item;
-      // Re-insert to DB (New ID generated)
+      // Re-insert to DB with all fields
       const newPayload = {
           user_id: user.id,
           task: item.task,
-          completed: item.completed,
-          created_at: item.createdAt.toISOString(),
-          category_id: item.categoryId,
+          status: item.completed ? 'completed' : 'pending',
+          category_id: item.categoryId || null,
           due_date: item.dueDate ? item.dueDate.toISOString() : null,
-          location: item.location,
-          time: item.time,
-          priority: item.priority,
-          tags: item.tags
+          location: item.location || null,
+          time: item.time || null,
+          priority: item.priority || false,
+          tags: item.tags && item.tags.length > 0 ? item.tags.join(',') : null
       };
 
       const { data, error } = await supabase.from('schedules').insert(newPayload).select().single();
