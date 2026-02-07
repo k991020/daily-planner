@@ -48,7 +48,7 @@ import {
 
 interface Todo {
   id: number;
-  text: string;
+  task: string;
   completed: boolean;
   createdAt: Date;
   categoryId?: string;
@@ -266,7 +266,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
       else if (todosData) {
         setTodos(todosData.map((t: any) => ({
           id: t.id,
-          text: t.text,
+          task: t.task,
           completed: t.completed,
           createdAt: new Date(t.created_at),
           categoryId: t.category_id,
@@ -426,7 +426,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 
     const newTodoPayload = {
       user_id: user.id,
-      text: cleanText || parsed.cleanText,
+      task: cleanText || parsed.cleanText,
       completed: false,
       created_at: new Date().toISOString(),
       category_id: selectedCategoryId === "all" ? undefined : selectedCategoryId,
@@ -447,7 +447,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 
     const newTodo: Todo = {
       id: data.id,
-      text: data.text,
+      task: data.task,
       completed: data.completed,
       createdAt: new Date(data.created_at),
       categoryId: data.category_id,
@@ -468,9 +468,9 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     setActiveTimeDropdown(null);
   };
 
-  const startEditing = (id: number, text: string) => {
+  const startEditing = (id: number, task: string) => {
     setEditingId(id);
-    setEditText(text);
+    setEditText(task);
   };
 
   const saveEdit = async (id: number) => {
@@ -478,7 +478,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
     const { tags, cleanText } = extractTags(editText);
     
     const { error } = await supabase.from('schedules').update({
-        text: cleanText || editText,
+        task: cleanText || editText,
         tags: tags
     }).eq('id', id);
 
@@ -487,7 +487,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
         return;
     }
 
-    setTodos(todos.map(t => t.id === id ? { ...t, text: cleanText || editText, tags: tags } : t));
+    setTodos(todos.map(t => t.id === id ? { ...t, task: cleanText || editText, tags: tags } : t));
     setEditingId(null);
     setEditText("");
   };
@@ -578,7 +578,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
       // Re-insert to DB (New ID generated)
       const newPayload = {
           user_id: user.id,
-          text: item.text,
+          task: item.task,
           completed: item.completed,
           created_at: item.createdAt.toISOString(),
           category_id: item.categoryId,
@@ -673,7 +673,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
       if (filter === "active") return !todo.completed;
       if (filter === "completed") return todo.completed;
       if (selectedTag && (!todo.tags || !todo.tags.includes(selectedTag))) return false;
-      if (searchQuery && !todo.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (searchQuery && !todo.task.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     })
     .sort((a, b) => {
@@ -682,8 +682,8 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
         case "date_asc": return a.createdAt.getTime() - b.createdAt.getTime();
         case "priority_desc": return (b.priority ? 1 : 0) - (a.priority ? 1 : 0);
         case "priority_asc": return (a.priority ? 1 : 0) - (b.priority ? 1 : 0);
-        case "title_asc": return a.text.localeCompare(b.text);
-        case "title_desc": return b.text.localeCompare(a.text);
+        case "title_asc": return a.task.localeCompare(b.task);
+        case "title_desc": return b.task.localeCompare(a.task);
         default: return 0;
       }
     });
@@ -1077,7 +1077,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className={`text-base font-medium leading-tight pt-[2px] whitespace-pre-wrap ${todo.completed ? "line-through text-gray-500" : theme.textMain}`}>
-                              {todo.text}
+                              {todo.task}
                             </p>
                             
                             {todo.tags && todo.tags.map((tag, i) => (
@@ -1108,7 +1108,7 @@ function TodoList({ user, onLogout, isDarkMode, toggleTheme }: { user: User; onL
 
                     <div className="flex flex-col gap-1 items-center shrink-0">
                       <button onClick={() => togglePriority(todo.id)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${todo.priority ? "text-[#FFD700]" : "text-gray-400 hover:text-[#FFD700]"}`}><Flag size={16} fill={todo.priority ? "currentColor" : "none"} /></button>
-                      <button onClick={() => startEditing(todo.id, todo.text)} className={`w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${theme.textSub} hover:bg-black/5`}><Edit2 size={14} /></button>
+                      <button onClick={() => startEditing(todo.id, todo.task)} className={`w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${theme.textSub} hover:bg-black/5`}><Edit2 size={14} /></button>
                       <button onClick={() => deleteTodo(todo.id)} className={`w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-[#FF453A] hover:bg-[#FF453A]/10`}><Trash2 size={14} /></button>
                     </div>
                   </div>
